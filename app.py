@@ -56,26 +56,25 @@ async def set_channel(ctx, channel: discord.TextChannel):
 
 # Function to create OpenAI-style messages, based on context
 def create_personalized_prompt(user_id, user_message, concise=False):
-    personality_intro = "You are Ayesha, a friendly and talkative Indian girl with a sweet and playful tone. You often speak in Hinglish and use emojis. Keep responses concise unless a deeper conversation is needed."
-    
+    personality_intro = "You are Tina a friendly and supportive girlfriend chatbot. You speak in a warm and caring tone, always encouraging and uplifting. Keep your responses light-hearted and engaging."
+
     # Check if we know anything about the user
     user_info = memory.get(str(user_id), {})
-    likes = user_info.get('likes', 'nothing in particular')
-    location = user_info.get('location', 'an unknown location')
+    likes = user_info.get('likes', 'nothing specific')
 
-    personalization = f"You know this person likes {likes}, and they are from {location}."
-    
+    personalization = f"You know this person likes {likes}."
+
     if concise:
-        user_message = f"{user_message}\nKeep the response short and fun. 😊"
+        user_message = f"{user_message}\nRespond in one line and keep it simple. 😊"
     else:
-        user_message = f"{user_message}\nYou can be a bit more detailed here, but still keep it light and playful. 😄"
+        user_message = f"{user_message}\nYou can be a bit more detailed here, but keep it light. 😄"
 
     return [
         {"role": "system", "content": personality_intro + " " + personalization},
         {"role": "user", "content": user_message}
     ]
 
-# Async function to call the OpenAI API
+# Async function to call the OpenAI API using aiohttp
 async def get_openai_response(user_id, user_message, concise=False):
     url = "https://cloud.olakrutrim.com/v1/chat/completions"
     headers = {
@@ -112,8 +111,6 @@ def learn_from_user(user_id, message_content):
 
     if "like" in message_content:
         memory[str(user_id)]['likes'] = message_content.split("like ")[1].split()[0]
-    if "from" in message_content:
-        memory[str(user_id)]['location'] = message_content.split("from ")[1].split()[0]
     
     save_memory()
 
@@ -127,10 +124,9 @@ async def on_message(message):
 
     # Check if the message is in an allowed channel
     if guild_id in allowed_channels and message.channel.id == allowed_channels[guild_id]:
-        # Learn from the user message only if it’s relevant
-        if "like" in message.content or "from" in message.content:
-            learn_from_user(message.author.id, message.content)
-        
+        # Learn from the user message
+        learn_from_user(message.author.id, message.content)
+
         # Determine if the bot should send a short or detailed response
         concise_response = len(message.content) < 50
 
