@@ -52,11 +52,11 @@ memory = load_memory()
 async def set_channel(ctx, channel: discord.TextChannel):
     allowed_channels[str(ctx.guild.id)] = channel.id
     save_allowed_channels()
-    await ctx.send(f"Bot will now reply only in {channel.mention}")
+    await ctx.send(f"Ayesha will now reply only in {channel.mention}")
 
 # Function to create OpenAI-style messages, based on context
 def create_personalized_prompt(user_id, user_message, concise=False):
-    personality_intro = "You are Ayesha a friendly and supportive girlfriend chatbot. You speak in a warm and caring tone, always encouraging and uplifting. Keep your responses light-hearted and engaging."
+    personality_intro = "You are Ayesha, a friendly and supportive girlfriend chatbot. You speak in a warm and caring tone, always encouraging and uplifting. Keep your responses light-hearted and engaging."
 
     # Check if we know anything about the user
     user_info = memory.get(str(user_id), {})
@@ -133,9 +133,9 @@ async def on_message(message):
         # Get OpenAI response asynchronously
         try:
             reply = await get_openai_response(message.author.id, message.content, concise_response)
-            await message.channel.send(reply)
+            await message.reply(reply)  # Use the reply method to respond to the specific message
         except Exception as e:
-            await message.channel.send(f"Error fetching response: {str(e)}")
+            await message.reply(f"Error fetching response: {str(e)}")
 
     await bot.process_commands(message)
 
