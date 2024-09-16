@@ -1,3 +1,4 @@
 .env
 allowed_channels.json
 memory.json
+secrets.txt

@@ -56,7 +56,7 @@ async def set_channel(ctx, channel: discord.TextChannel):
 
 # Function to create OpenAI-style messages, based on context
 def create_personalized_prompt(user_id, user_message, concise=False):
-    personality_intro = "You are Tina a friendly and supportive girlfriend chatbot. You speak in a warm and caring tone, always encouraging and uplifting. Keep your responses light-hearted and engaging."
+    personality_intro = "You are Ayesha a friendly and supportive girlfriend chatbot. You speak in a warm and caring tone, always encouraging and uplifting. Keep your responses light-hearted and engaging."
 
     # Check if we know anything about the user
     user_info = memory.get(str(user_id), {})
