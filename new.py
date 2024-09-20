@@ -2,16 +2,16 @@ import discord
 from discord.ext import commands, tasks
 import json
 import os
-import aiohttp
-from dotenv import load_dotenv
 import random
+from dotenv import load_dotenv
+from krutrim_cloud import KrutrimCloud
+from krutrim_cloud.lib.utils import convert_base64_to_PIL_img
 
 # Load environment variables
 load_dotenv()
 
 # Fetch tokens and keys from environment variables
 DISCORD_BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 # Bot setup
 intents = discord.Intents.default()
@@ -46,6 +46,10 @@ def save_memory():
 allowed_channels = load_allowed_channels()
 memory = load_memory()
 
+# Create output directory if it doesn't exist
+output_dir = "./output"
+os.makedirs(output_dir, exist_ok=True)
+
 # Command for admins to set the allowed channel
 @bot.command(name="setchannel")
 @commands.has_permissions(administrator=True)
@@ -54,7 +58,7 @@ async def set_channel(ctx, channel: discord.TextChannel):
     save_allowed_channels()
     await ctx.send(f"Ayesha will now reply only in {channel.mention}")
 
-# Function to create OpenAI-style messages, based on context
+# Function to create personalized messages for KrutrimCloud
 def create_personalized_prompt(user_id, user_message, concise=False):
     personality_intro = "You are Tina, a friendly and supportive girlfriend chatbot. You speak in a warm and caring tone, always encouraging and uplifting. Keep your responses light-hearted and engaging."
 
@@ -74,35 +78,44 @@ def create_personalized_prompt(user_id, user_message, concise=False):
         {"role": "user", "content": user_message}
     ]
 
-# Async function to call the OpenAI API using aiohttp
-async def get_openai_response(user_id, user_message, concise=False):
-    url = "https://cloud.olakrutrim.com/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json"
-    }
+# Async function to call the KrutrimCloud API for text responses
+async def get_krutir_response(user_id, user_message, concise=False):
+    client = KrutrimCloud()
+    model_name = "Meta-Llama-3.1-70B-Instruct"
+    messages = create_personalized_prompt(user_id, user_message, concise)
 
-    data = {
-        "model": "Meta-Llama-3.1-70B-Instruct",
-        "messages": create_personalized_prompt(user_id, user_message, concise),
-        "frequency_penalty": 0,
-        "logit_bias": {2435: -100, 640: -100},
-        "logprobs": True,
-        "top_logprobs": 2,
-        "max_tokens": 256,
-        "n": 1,
-        "presence_penalty": 0,
-        "temperature": 0,
-        "top_p": 1
-    }
+    try:
+        response = client.chat.completions.create(model=model_name, messages=messages)
+        return response.choices[0].message.content  # type:ignore
+    except Exception as e:
+        return f"Error fetching response: {str(e)}"
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, headers=headers, json=data) as response:
-            if response.status == 200:
-                result = await response.json()
-                return result['choices'][0]['message']['content']
-            else:
-                return f"Error {response.status}: Failed to get a response."
+# Async function to generate images using KrutrimCloud
+async def generate_image(prompt):
+    client = KrutrimCloud()
+    try:
+        stable_diffusion_response = client.images.generations.diffusion(
+            model_name="diffusion1XL",
+            image_height=1024,
+            image_width=1024,
+            prompt=prompt
+        )
+
+        if stable_diffusion_response.error:
+            return f"Error generating image: {stable_diffusion_response.error}"
+
+        # Access each generated image
+        images = []
+        for data in stable_diffusion_response.data:
+            PIL_img = convert_base64_to_PIL_img(data["b64_json"])
+            # Save the image to a file or send it directly
+            image_path = os.path.join(output_dir, f"image_{random.randint(1, 10000)}.png")
+            PIL_img.save(image_path)
+            images.append(image_path)
+
+        return images
+    except Exception as exc:
+        return f"Exception: {exc}"
 
 # Function to remember user-specific details
 def learn_from_user(user_id, message_content):
@@ -127,12 +140,33 @@ async def on_message(message):
         # Learn from the user message
         learn_from_user(message.author.id, message.content)
 
+        # Check if the user is asking for an image of the bot
+        if "image of yourself" in message.content.lower() or \
+           "send me a picture of you" in message.content.lower() or \
+           "show me you" in message.content.lower():
+            await message.reply("Aw, sweetie, I'm a chatbot, I don't have a physical body, but I'm always here for you in spirit! 💕")
+            return
+
+        # Check if the user is asking for an image using a command or keywords
+        if message.content.startswith("!generateimage ") or \
+           "create an image of" in message.content.lower() or \
+           "draw" in message.content.lower() or \
+           "generate a picture of" in message.content.lower():
+            prompt = message.content.split(" ", 1)[1] if message.content.startswith("!generateimage ") else message.content
+            images = await generate_image(prompt)
+            if isinstance(images, list):
+                for image_path in images:
+                    await message.channel.send(file=discord.File(image_path))
+            else:
+                await message.reply(images)  # Send error message if any
+            return
+
         # Determine if the bot should send a short or detailed response
         concise_response = len(message.content) < 50
 
-        # Get OpenAI response asynchronously
+        # Get KrutrimCloud response asynchronously
         try:
-            reply = await get_openai_response(message.author.id, message.content, concise_response)
+            reply = await get_krutir_response(message.author.id, message.content, concise_response)
             await message.reply(reply)  # Use the reply method to respond to the specific message
         except Exception as e:
             await message.reply(f"Error fetching response: {str(e)}")
